@@ -42,9 +42,16 @@ public class KeyringManager {
         out1 = new ArmoredOutputStream(out1);
 
         thisCollection.encode(out1);
-
-
         out1.close();
+
+
+        File f = new File("misc/Identities.txt");
+        f.createNewFile();
+        String current = Utilities.readFile("misc/Identities.txt",StandardCharsets.US_ASCII);
+        current = current.concat(id);
+        PrintWriter out = new PrintWriter("misc/Identities.txt");
+        out.println(current);
+        out.close();
 
     }
     public static void main(String args[]) throws IOException, PGPException{
@@ -82,11 +89,11 @@ public class KeyringManager {
             thisCollection.encode(out1);
             out1.close();
 
-            File f = new File("Identities.txt");
+            File f = new File("misc/Identities.txt");
             f.createNewFile();
-            String current = Utilities.readFile("Identities.txt",StandardCharsets.US_ASCII);
+            String current = Utilities.readFile("misc/Identities.txt",StandardCharsets.US_ASCII);
             current = current.concat(addID);
-            PrintWriter out = new PrintWriter("Identities.txt");
+            PrintWriter out = new PrintWriter("misc/Identities.txt");
             out.println(current);
             out.close();
 
@@ -131,7 +138,7 @@ public class KeyringManager {
 
         }else if(thisChar==('l')){
             System.out.println("List of public key IDs you currently store:");
-            System.out.println(Utilities.readFile("Identities.txt", StandardCharsets.US_ASCII));
+            System.out.println(Utilities.readFile("misc/Identities.txt", StandardCharsets.US_ASCII));
         }
 
         else{
