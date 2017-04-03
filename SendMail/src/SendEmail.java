@@ -1,96 +1,96 @@
 import com.sun.mail.smtp.SMTPTransport;
 import com.sun.xml.internal.messaging.saaj.packaging.mime.MessagingException;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
+import javax.activation.DataHandler;
+import javax.activation.DataSource;
+import javax.activation.FileDataSource;
 import javax.mail.*;
 import javax.mail.internet.*;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.security.Security;
 import java.util.Date;
 import java.util.Properties;
 
+import static java.nio.charset.StandardCharsets.US_ASCII;
+
 public class SendEmail {
+    static char[] pass = {'C'};
+
     private SendEmail() {
+        Security.addProvider(new BouncyCastleProvider());
     }
 
-    public static void main(String [] args) {
-        /*
-        String recipient = "roberttcooney@gmail.com";
-        String sender = "roberttcooney@gmail.com";
-        String host = "localhost";
+    public static void main(String[] args) throws java.lang.Exception {
 
-        Properties myProperties = new Properties();
-        //myProperties.("mail.smtp.host",host);
+        Security.addProvider(new BouncyCastleProvider());
 
-        Session thisSession = Session.getInstance(myProperties);
+
+
+        Security.addProvider(new BouncyCastleProvider());
+        String fileName = "sendmail/SendingMail.txt";
+        String sigOutputFileName = "misc/sig.txt";
+        //String outputFileName = "output.txt";
+        String secretPath = "keys/secret.asc";
+        File output = new File(sigOutputFileName);
+        File secret = new File(secretPath);
+        output.createNewFile();
+        String id = "R";
+        //InputStream streamIn = new FileInputStream(secret);
+        //OutputStream streamOut = new FileOutputStream(output,false);
+
+
+        SignatureManager.createSignature(fileName,secretPath,sigOutputFileName,pass);
+
+
+        String publicPath = "keys/PubKeyCollection.pkr";
+
+
+        String encryptedOutputFileName = "misc/output.txt";
+        File output2 = new File(encryptedOutputFileName);
+        output2.createNewFile();
+        EncryptionHandler.getEncrypted(encryptedOutputFileName, fileName, publicPath,id);
+
+        Thread.sleep(500);
+
+        String message = Utilities.readFile(encryptedOutputFileName,US_ASCII);
 
         try{
-
-            MimeMessage thisMessage = new MimeMessage(thisSession);
-            thisMessage.setFrom(new InternetAddress(sender));
-            thisMessage.addRecipient(Message.RecipientType.TO, new InternetAddress(recipient));
-
-            thisMessage.setSubject("Test message");
-            thisMessage.setText("This is the contents of the message");
-
-            Transport.send(thisMessage);
-
-            System.out.println("Sent message successfully");
-
-        }catch (javax.mail.MessagingException e){
-            e.printStackTrace();
-        }*/
-
-        try{
-            Send("roberttcooney","5rGmC5xzEs","roberttcooney@gmail.com","Example title","Example Message Body");
+            Send("redacted","redacted","testaccrc@gmail.com","Example title",message);
         }catch(javax.mail.internet.AddressException e){
             e.printStackTrace();
         }catch (MessagingException c){
             c.printStackTrace();
         }
 
+
     }
 
-    public static void Send(final String username, final String password, String recipientEmail, String title, String message) throws AddressException, MessagingException {
-        SendEmail.Send(username, password, recipientEmail, "", title, message);
+
+
+    private static void Send(final String user, final String pw, String recipient, String emailTitle, String body) throws AddressException, MessagingException, javax.mail.MessagingException{
+        SendEmail.Send(user, pw, recipient, "", emailTitle, body);
     }
 
-    /**
-     * Send email using GMail SMTP server.
-     *
-     * @param username       GMail username
-     * @param password       GMail password
-     * @param recipientEmail TO recipient
-     * @param ccEmail        CC recipient. Can be empty if there is no CC recipient
-     * @param title          title of the message
-     * @param message        message to be sent
-     * @throws AddressException   if the email address parse failed
-     * @throws MessagingException if the connection is dead or not in the connected state or if the message is not a MimeMessage
-     */
-    public static void Send(final String username, final String password, String recipientEmail, String ccEmail, String title, String message) throws AddressException, MessagingException {
+    private static void Send(final String username, final String password, String recipientEmail, String ccEmail, String title, String message) throws AddressException, MessagingException, javax.mail.MessagingException {
         Security.addProvider(new com.sun.net.ssl.internal.ssl.Provider());
-        final String SSL_FACTORY = "javax.net.ssl.SSLSocketFactory";
+        final String FACTORY = "javax.net.ssl.SSLSocketFactory";
 
-        // Get a Properties object
-        Properties props = System.getProperties();
-        props.setProperty("mail.smtps.host", "smtp.gmail.com");
-        props.setProperty("mail.smtp.socketFactory.class", SSL_FACTORY);
-        props.setProperty("mail.smtp.socketFactory.fallback", "false");
-        props.setProperty("mail.smtp.port", "465");
-        props.setProperty("mail.smtp.socketFactory.port", "465");
-        props.setProperty("mail.smtps.auth", "true");
+        Properties properties = System.getProperties();
+        properties.setProperty("mail.smtps.host", "smtp.gmail.com");
+        properties.setProperty("mail.smtp.socketFactory.class", FACTORY);
+        properties.setProperty("mail.smtp.socketFactory.fallback", "false");
+        properties.setProperty("mail.smtp.port", "465");
+        properties.setProperty("mail.smtp.socketFactory.port", "465");
+        properties.setProperty("mail.smtps.auth", "true");
+        properties.put("mail.smtps.quitwait", "false");
 
-        /*
-        If set to false, the QUIT command is sent and the connection is immediately closed. If set
-        to true (the default), causes the transport to wait for the response to the QUIT command.
-
-        ref :   http://java.sun.com/products/javamail/javadocs/com/sun/mail/smtp/package-summary.html
-                http://forum.java.sun.com/thread.jspa?threadID=5205249
-                smtpsend.java - demo program from javamail
-        */
-        props.put("mail.smtps.quitwait", "false");
-
-        Session session = Session.getInstance(props, null);
+        Session session = Session.getInstance(properties, null);
 
         // -- Create a new message --
+        Multipart multipart = new MimeMultipart();
+
         final MimeMessage msg = new MimeMessage(session);
 
         try {
@@ -104,9 +104,21 @@ public class SendEmail {
             }
 
             msg.setSubject(title);
-            msg.setText(message, "utf-8");
+            BodyPart messageBodyPart = new MimeBodyPart();
+            messageBodyPart.setText(message);
+            multipart.addBodyPart(messageBodyPart);
+
+            BodyPart attachmentPart = new MimeBodyPart();
+            String filename = "misc/sig.txt";
+            DataSource source = new FileDataSource(filename);
+            attachmentPart.setDataHandler(new DataHandler(source));
+            attachmentPart.setFileName(filename);
+            multipart.addBodyPart(attachmentPart);
+
+            //msg.setText(message, "utf-8");
             msg.setSentDate(new Date());
 
+            msg.setContent(multipart);
             SMTPTransport t = (SMTPTransport) session.getTransport("smtps");
 
             t.connect("smtp.gmail.com", username, password);
@@ -116,4 +128,7 @@ public class SendEmail {
             e.printStackTrace();
         }
     }
+
+
+
 }

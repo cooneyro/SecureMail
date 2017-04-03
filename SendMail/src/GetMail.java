@@ -3,54 +3,53 @@ import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.util.*;
 import javax.mail.*;
-
 import com.sun.mail.imap.IMAPFolder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
+public class GetMail {
 
-public class FolderFetchIMAP {
-
-    public static void main(String[] args) throws MessagingException, IOException, java.security.NoSuchProviderException {
-        IMAPFolder folder = null;
+    public static void main(String[] args) throws IllegalArgumentException, MessagingException, IOException, java.security.NoSuchProviderException, java.lang.InterruptedException {
         Security.addProvider(new BouncyCastleProvider());
-        Store store = null;
-        String subject;
+        IMAPFolder thisFold = null;
+        Store thisStore = null;
+        String thisSubject;
         try {
-            Properties props = System.getProperties();
-            props.setProperty("mail.store.protocol", "imaps");
+            Properties properties = System.getProperties();
+            String protocol = "mail.store.protocol";
+            String store = "imaps";
+            String hostname = "imap.googlemail.com";
+            String desiredFolder = "inbox";
+            properties.setProperty(protocol, store);
 
-            Session session = Session.getDefaultInstance(props, null);
+            Session thisSession = Session.getDefaultInstance(properties, null);
 
-            store = session.getStore("imaps");
-            store.connect("imap.googlemail.com", "testaccrc@gmail.com", "testingaccount");
+            thisStore = thisSession.getStore(store);
+            String username = "redacted";
+            String pw = "redacted";
+            thisStore.connect(hostname, username,pw);
 
-            //folder = (IMAPFolder) store.getFolder("[Gmail]/Spam"); // This doesn't work for other email account
-            folder = (IMAPFolder) store.getFolder("inbox"); //This works for both email account
+            thisFold = (IMAPFolder) thisStore.getFolder(desiredFolder);
 
 
-            if (!folder.isOpen())
-                folder.open(Folder.READ_WRITE);
-            Message[] messages = folder.getMessages();
-            System.out.println("No of Messages : " + folder.getMessageCount());
-            System.out.println("No of Unread Messages : " + folder.getUnreadMessageCount());
-            System.out.println(messages.length);
-            for (int i = messages.length - 1; i >= 0; i--) {
+            if (!thisFold.isOpen()) {
+                thisFold.open(Folder.READ_WRITE);
+            }
+            Message[] allMessages = thisFold.getMessages();
+            System.out.println("Total number of messages : " + thisFold.getMessageCount());
+            System.out.println(allMessages.length);
+            for (int i = allMessages.length - 1; i >= 0; i--) {
+                System.out.println("-----------------------------------------------------------------------------");
+                System.out.println("Email number " + (i + 1) + ":");
+                Message thisMessage = allMessages[i];
+                thisSubject = thisMessage.getSubject();
+                System.out.println("Date: " + thisMessage.getReceivedDate());
+                System.out.println("Subject: " + thisSubject);
+                System.out.println("From: " + thisMessage.getFrom()[0]);
+                String content = thisMessage.getContent().toString();
 
-                System.out.println("*****************************************************************************");
-                System.out.println("MESSAGE " + (i + 1) + ":");
-                Message msg = messages[i];
-
-                subject = msg.getSubject();
-
-                System.out.println("Subject: " + subject);
-                System.out.println("From: " + msg.getFrom()[0]);
-                System.out.println("To: " + msg.getAllRecipients()[0]);
-                System.out.println("Date: " + msg.getReceivedDate());
-                String content = msg.getContent().toString();
-
-                Object thisObj = msg.getContent();
+                Object thisObj = thisMessage.getContent();
                 if (thisObj instanceof Multipart) {
-                    Multipart thisContent = (Multipart) msg.getContent();
+                    Multipart thisContent = (Multipart) thisMessage.getContent();
                     int count = thisContent.getCount();
                     int iterate = 0;
                     while (iterate < count) {
@@ -59,12 +58,12 @@ public class FolderFetchIMAP {
                         content = thisPart.getContent().toString();
                         if (!content.contains("<!DOCTYPE html")) {
                             if (content.contains("-----BEGIN PGP SIGNATURE-----")) {
-                                String publicKeyCollection = "PubKeyCollection.pkr";
-                                PrintWriter out = new PrintWriter("sigtest.txt");
+                                String publicKeyCollection = "keys/PubKeyCollection.pkr";
+                                PrintWriter out = new PrintWriter("misc/sigtest.txt");
                                 out.println(content);
                                 out.close();
                                 try {
-                                    SignatureManager.checkSig("decodemail.txt", "sigtest.txt", publicKeyCollection);
+                                    SignatureManager.checkSig("misc/decodemail.txt", "misc/sigtest.txt", publicKeyCollection);
                                 } catch (java.security.GeneralSecurityException e) {
                                     e.printStackTrace();
                                 } catch (org.bouncycastle.openpgp.PGPException p) {
@@ -85,29 +84,28 @@ public class FolderFetchIMAP {
                 }
 
 
-
+                Thread.sleep(100);
             }
         } finally
 
         {
-            if (folder != null && folder.isOpen()) {
-                folder.close(true);
+            if (thisFold != null && thisFold.isOpen()) {
+                thisFold.close(true);
             }
-            if (store != null) {
-                store.close();
+            if (thisStore != null) {
+                thisStore.close();
             }
         }
 
     }
 
-    private static void decryptPGP(String content) throws java.io.FileNotFoundException, java.io.IOException, java.security.NoSuchProviderException {
-        String secretPath = "secret.asc";
-        PrintWriter out = new PrintWriter("decodemail.txt");
+    private static void decryptPGP(String content) throws java.io.IOException, java.security.NoSuchProviderException {
+        String secretPath = "keys/secret.asc";
+        PrintWriter out = new PrintWriter("misc/decodemail.txt");
         out.println(content);
         out.close();
-        KeyBasedFileProcessor.decryptFile("decodemail.txt", secretPath, SendEmail.pass, "decodemail.txt");
-        System.out.println(Utils.readFile("decodemail.txt", StandardCharsets.US_ASCII));
+        EncryptionHandler.getDecrypted("misc/decodemail.txt", secretPath, SendEmail.pass, "misc/decodemail.txt");
+        System.out.println(Utilities.readFile("misc/decodemail.txt", StandardCharsets.US_ASCII));
     }
-
 
 }

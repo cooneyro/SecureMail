@@ -1,65 +1,35 @@
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.security.NoSuchProviderException;
-import java.security.SecureRandom;
-import java.security.Security;
-import java.util.Iterator;
+
+
 
 import org.bouncycastle.bcpg.ArmoredOutputStream;
-import org.bouncycastle.bcpg.CompressionAlgorithmTags;
+import java.io.*;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.openpgp.PGPCompressedData;
-import org.bouncycastle.openpgp.PGPEncryptedData;
-import org.bouncycastle.openpgp.PGPEncryptedDataGenerator;
-import org.bouncycastle.openpgp.PGPEncryptedDataList;
-import org.bouncycastle.openpgp.PGPException;
-import org.bouncycastle.openpgp.PGPLiteralData;
-import org.bouncycastle.openpgp.PGPOnePassSignatureList;
-import org.bouncycastle.openpgp.PGPPrivateKey;
-import org.bouncycastle.openpgp.PGPPublicKey;
-import org.bouncycastle.openpgp.PGPPublicKeyEncryptedData;
-import org.bouncycastle.openpgp.PGPSecretKeyRingCollection;
-import org.bouncycastle.openpgp.PGPUtil;
+import org.bouncycastle.openpgp.*;
 import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
+import java.security.NoSuchProviderException;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
-import org.bouncycastle.openpgp.operator.jcajce.JcePGPDataEncryptorBuilder;
+import java.security.Security;
+import java.util.Iterator;
 import org.bouncycastle.openpgp.operator.jcajce.JcePublicKeyDataDecryptorFactoryBuilder;
+import java.security.SecureRandom;
+import org.bouncycastle.bcpg.CompressionAlgorithmTags;
 import org.bouncycastle.openpgp.operator.jcajce.JcePublicKeyKeyEncryptionMethodGenerator;
 import org.bouncycastle.util.io.Streams;
+import org.bouncycastle.openpgp.operator.jcajce.JcePGPDataEncryptorBuilder;
 
 /**
- * A simple utility class that encrypts/decrypts public key based
- * encryption files.
- * <p>
- * To encrypt a file: KeyBasedFileProcessor -e [-a|-ai] fileName publicKeyFile.<br>
- * If -a is specified the output file will be "ascii-armored".
- * If -i is specified the output file will be have integrity checking added.
- * <p>
- * To decrypt: KeyBasedFileProcessor -d fileName secretKeyFile passPhrase.
- * <p>
- * Note 1: this example will silently overwrite files, nor does it pay any attention to
- * the specification of "_CONSOLE" in the filename. It also expects that a single pass phrase
- * will have been used.
- * <p>
- * Note 2: if an empty file name has been specified in the literal data object contained in the
- * encrypted packet a file with the name filename.out will be generated in the current working directory.
+ * Handles encryption and decryption of files
  */
-public class KeyBasedFileProcessor {
-    public static void decryptFile(
-            String inputFileName,
-            String keyFileName,
-            char[] passwd,
-            String defaultFileName)
+public class EncryptionHandler {
+    static void getDecrypted(
+            String fileInput,
+            String keyInput,
+            char[] pass,
+            String fileOutput)
             throws IOException, NoSuchProviderException {
-        InputStream in = new BufferedInputStream(new FileInputStream(inputFileName));
-        InputStream keyIn = new BufferedInputStream(new FileInputStream(keyFileName));
-        decryptFile(in, keyIn, passwd, defaultFileName);
+        InputStream in = new BufferedInputStream(new FileInputStream(fileInput));
+        InputStream keyIn = new BufferedInputStream(new FileInputStream(keyInput));
+        getDecrypted(in, keyIn, pass, fileOutput);
         keyIn.close();
         in.close();
     }
@@ -67,85 +37,79 @@ public class KeyBasedFileProcessor {
     /**
      * decrypt the passed in message stream
      */
-    public static void decryptFile(
-            InputStream in,
-            InputStream keyIn,
-            char[] passwd,
-            String defaultFileName)
+    private static void getDecrypted(
+            InputStream fileInput,
+            InputStream keyInput,
+            char[] pass,
+            String fileOutput)
             throws IOException, NoSuchProviderException {
-        in = PGPUtil.getDecoderStream(in);
+        fileInput = PGPUtil.getDecoderStream(fileInput);
 
         try {
-            JcaPGPObjectFactory pgpF = new JcaPGPObjectFactory(in);
-            PGPEncryptedDataList enc;
+            JcaPGPObjectFactory objFactory = new JcaPGPObjectFactory(fileInput);
+            PGPEncryptedDataList encDataList;
 
-            Object o = pgpF.nextObject();
-            //
-            // the first object might be a PGP marker packet.
-            //
-            if (o instanceof PGPEncryptedDataList) {
-                enc = (PGPEncryptedDataList) o;
+            Object nextFactObject = objFactory.nextObject();
+            if (nextFactObject instanceof PGPEncryptedDataList) {
+                encDataList = (PGPEncryptedDataList) nextFactObject;
             } else {
-                enc = (PGPEncryptedDataList) pgpF.nextObject();
+                encDataList = (PGPEncryptedDataList) objFactory.nextObject();
             }
 
-            //
-            // find the secret key
-            //
-            Iterator it = enc.getEncryptedDataObjects();
-            PGPPrivateKey sKey = null;
-            PGPPublicKeyEncryptedData pbe = null;
-            PGPSecretKeyRingCollection pgpSec = new PGPSecretKeyRingCollection(
-                    PGPUtil.getDecoderStream(keyIn), new JcaKeyFingerprintCalculator());
+            Iterator iterate = encDataList.getEncryptedDataObjects();
+            PGPPrivateKey privateKey = null;
+            PGPPublicKeyEncryptedData data = null;
+            PGPSecretKeyRingCollection secretKeys = new PGPSecretKeyRingCollection(
+                    PGPUtil.getDecoderStream(keyInput), new JcaKeyFingerprintCalculator());
 
-            while (sKey == null && it.hasNext()) {
-                pbe = (PGPPublicKeyEncryptedData) it.next();
+            while (privateKey == null && iterate.hasNext()) {
+                data = (PGPPublicKeyEncryptedData) iterate.next();
 
-                sKey = Utils.findSecretKey(pgpSec, pbe.getKeyID(), passwd);
+                privateKey = Utilities.retrieveSecretKey(secretKeys, data.getKeyID(), pass);
             }
 
-            if (sKey == null) {
-                throw new IllegalArgumentException("secret key for message not found.");
+            if (privateKey == null) {
+                throw new IllegalArgumentException("Error locating key for message.");
             }
 
-            InputStream clear = pbe.getDataStream(new JcePublicKeyDataDecryptorFactoryBuilder().setProvider("BC").build(sKey));
+            InputStream dataIn = data.getDataStream(new JcePublicKeyDataDecryptorFactoryBuilder().setProvider("BC").build(privateKey));
 
-            JcaPGPObjectFactory plainFact = new JcaPGPObjectFactory(clear);
+            JcaPGPObjectFactory newObjectFactory = new JcaPGPObjectFactory(dataIn);
 
-            Object message = plainFact.nextObject();
+            Object part = newObjectFactory.nextObject();
 
-            if (message instanceof PGPCompressedData) {
-                PGPCompressedData cData = (PGPCompressedData) message;
-                JcaPGPObjectFactory pgpFact = new JcaPGPObjectFactory(cData.getDataStream());
+            if (part instanceof PGPCompressedData) {
+                PGPCompressedData compData = (PGPCompressedData) part;
+                JcaPGPObjectFactory objFact = new JcaPGPObjectFactory(compData.getDataStream());
 
-                message = pgpFact.nextObject();
+                part = objFact.nextObject();
             }
 
-            if (message instanceof PGPLiteralData) {
-                PGPLiteralData ld = (PGPLiteralData) message;
+            if (part instanceof PGPLiteralData) {
+                PGPLiteralData thisData = (PGPLiteralData) part;
 
-                String outFileName = defaultFileName;
+                String outFileName = fileOutput;
 
-                InputStream unc = ld.getInputStream();
-                OutputStream fOut = new BufferedOutputStream(new FileOutputStream(outFileName));
+                InputStream unEnc = thisData.getInputStream();
+                OutputStream fileOut = new BufferedOutputStream(new FileOutputStream(outFileName));
 
-                Streams.pipeAll(unc, fOut);
+                Streams.pipeAll(unEnc, fileOut);
 
-                fOut.close();
-            } else if (message instanceof PGPOnePassSignatureList) {
-                throw new PGPException("encrypted message contains a signed message - not literal data.");
+                fileOut.close();
+            } else if (part instanceof PGPOnePassSignatureList) {
+                throw new PGPException("Error. Encrypted message contains signed message");
             } else {
-                throw new PGPException("message is not a simple encrypted file - type unknown.");
+                throw new PGPException("Error. Cannot determine file type.");
             }
 
-            if (pbe.isIntegrityProtected()) {
-                if (!pbe.verify()) {
-                    System.err.println("message failed integrity check");
+            if (data.isIntegrityProtected()) {
+                if (!data.verify()) {
+                    System.err.println("Message has failed integrity check");
                 } else {
-                    System.err.println("message integrity check passed");
+                    System.err.println("Message successfully passed integrity check");
                 }
             } else {
-                System.err.println("no message integrity check");
+                System.err.println("Message integrity not checked");
             }
         } catch (PGPException e) {
             System.err.println(e);
@@ -155,76 +119,44 @@ public class KeyBasedFileProcessor {
         }
     }
 
-    public static void encryptFile(
-            String outputFileName,
-            String inputFileName,
-            String encKeyFileName,
-            boolean armor,
-            boolean withIntegrityCheck)
+    static void getEncrypted(
+            String encryptedFile,
+            String inputFile,
+            String keyFile,
+            String id)
             throws IOException, NoSuchProviderException, PGPException {
-        OutputStream out = new BufferedOutputStream(new FileOutputStream(outputFileName));
-        PGPPublicKey encKey = Utils.readPublicKey(encKeyFileName);
-        encryptFile(out, inputFileName, encKey, armor, withIntegrityCheck);
-        out.close();
+        InputStream inStream = new FileInputStream(keyFile);
+        PGPPublicKeyRingCollection thisCollection = new PGPPublicKeyRingCollection(
+                PGPUtil.getDecoderStream(inStream), new JcaKeyFingerprintCalculator());
+        Iterator<PGPPublicKeyRing> thisList = thisCollection.getKeyRings(id);
+        OutputStream outStream = new BufferedOutputStream(new FileOutputStream(encryptedFile));
+        PGPPublicKey key = thisList.next().getPublicKey();
+        getEncrypted(outStream, inputFile, key);
+        outStream.close();
     }
 
-    public static void encryptFile(
-            OutputStream out,
+    private static void getEncrypted(
+            OutputStream encryptedFile,
             String fileName,
-            PGPPublicKey encKey,
-            boolean armor,
-            boolean withIntegrityCheck)
+            PGPPublicKey encKey)
             throws IOException, NoSuchProviderException {
-        if (armor) {
-            out = new ArmoredOutputStream(out);
-        }
-
-        try {
-            byte[] bytes = Utils.compressFile(fileName, CompressionAlgorithmTags.ZIP);
-
-            PGPEncryptedDataGenerator encGen = new PGPEncryptedDataGenerator(
-                    new JcePGPDataEncryptorBuilder(PGPEncryptedData.CAST5).setWithIntegrityPacket(withIntegrityCheck).setSecureRandom(new SecureRandom()).setProvider("BC"));
-
-            encGen.addMethod(new JcePublicKeyKeyEncryptionMethodGenerator(encKey).setProvider("BC"));
-
-            OutputStream cOut = encGen.open(out, bytes.length);
-
-            cOut.write(bytes);
-            cOut.close();
-
-            if (armor) {
-                out.close();
-            }
-        } catch (PGPException e) {
-            System.err.println(e);
-            if (e.getUnderlyingException() != null) {
-                e.getUnderlyingException().printStackTrace();
-            }
-        }
-    }
-
-    public static void main(
-            String[] args)
-            throws Exception {
+        encryptedFile = new ArmoredOutputStream(encryptedFile);
         Security.addProvider(new BouncyCastleProvider());
 
-        if (args.length == 0) {
-            System.err.println("usage: KeyBasedFileProcessor -e|-d [-a|ai] file [secretKeyFile passPhrase|pubKeyFile]");
-            return;
-        }
-
-        if (args[0].equals("-e")) {
-            if (args[1].equals("-a") || args[1].equals("-ai") || args[1].equals("-ia")) {
-                encryptFile(args[2] + ".asc", args[2], args[3], true, (args[1].indexOf('i') > 0));
-            } else if (args[1].equals("-i")) {
-                encryptFile(args[2] + ".bpg", args[2], args[3], false, true);
-            } else {
-                encryptFile(args[1] + ".bpg", args[1], args[2], false, false);
-            }
-        } else if (args[0].equals("-d")) {
-            decryptFile(args[1], args[2], args[3].toCharArray(), new File(args[1]).getName() + ".out");
-        } else {
-            System.err.println("usage: KeyBasedFileProcessor -d|-e [-a|ai] file [secretKeyFile passPhrase|pubKeyFile]");
+        try {
+            byte[] fileToBytes = Utilities.compFile(fileName, CompressionAlgorithmTags.ZIP);
+            JcePGPDataEncryptorBuilder thisBuilder = new JcePGPDataEncryptorBuilder(PGPEncryptedData.CAST5);
+            thisBuilder.setWithIntegrityPacket(true);
+            thisBuilder.setSecureRandom(new SecureRandom());
+            thisBuilder.setProvider("BC");
+            PGPEncryptedDataGenerator dataGen = new PGPEncryptedDataGenerator(thisBuilder);
+            dataGen.addMethod(new JcePublicKeyKeyEncryptionMethodGenerator(encKey).setProvider("BC"));
+            OutputStream writeToFile = dataGen.open(encryptedFile, fileToBytes.length);
+            writeToFile.write(fileToBytes);
+            writeToFile.close();
+            encryptedFile.close();
+        } catch (PGPException e) {
+            System.err.println(e);
         }
     }
 }

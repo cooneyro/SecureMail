@@ -1,185 +1,128 @@
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
+import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
+import java.io.OutputStream;
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentSignerBuilder;
 import java.io.FileInputStream;
+import org.bouncycastle.bcpg.BCPGOutputStream;
+import java.security.GeneralSecurityException;
+import org.bouncycastle.bcpg.ArmoredOutputStream;
+import org.bouncycastle.openpgp.*;
 import java.io.FileOutputStream;
+import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
+import org.bouncycastle.openpgp.operator.PBESecretKeyDecryptor;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.security.GeneralSecurityException;
-import java.security.Security;
-
-import org.bouncycastle.bcpg.ArmoredOutputStream;
-import org.bouncycastle.bcpg.BCPGOutputStream;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.openpgp.PGPCompressedData;
-import org.bouncycastle.openpgp.PGPException;
-import org.bouncycastle.openpgp.PGPPrivateKey;
-import org.bouncycastle.openpgp.PGPPublicKey;
-import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
-import org.bouncycastle.openpgp.PGPSecretKey;
-import org.bouncycastle.openpgp.PGPSignature;
-import org.bouncycastle.openpgp.PGPSignatureGenerator;
-import org.bouncycastle.openpgp.PGPSignatureList;
-import org.bouncycastle.openpgp.PGPUtil;
-import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
-import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
-import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentSignerBuilder;
-import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder;
+import java.io.BufferedOutputStream;
+import org.bouncycastle.openpgp.operator.PGPContentSignerBuilder;
+import java.io.BufferedInputStream;
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 
 /**
- * For verifying and creating detached signatures
+ * For checking and creating detached signatures
  */
-public class DetachedSignatureProcessor
-{
-    public static void verifySignature(
-            String fileName,
-            String inputFileName,
-            String keyFileName)
-            throws GeneralSecurityException, IOException, PGPException
-    {
-        InputStream in = new BufferedInputStream(new FileInputStream(inputFileName));
-        InputStream keyIn = new BufferedInputStream(new FileInputStream(keyFileName));
+public class SignatureManager {
+    static void checkSig(
+            String originalFile,
+            String sigFile,
+            String keyFile)
+            throws GeneralSecurityException, IOException, PGPException {
+        InputStream key = new BufferedInputStream(new FileInputStream(keyFile));
+        InputStream sigIn = new BufferedInputStream(new FileInputStream(sigFile));
 
-        verifySignature(fileName, in, keyIn);
+        checkSig(originalFile, sigIn, key);
 
-        keyIn.close();
-        in.close();
+        key.close();
+        sigIn.close();
     }
-    
-    public static void verifySignature(
-            String          fileName,
-            InputStream     in,
-            InputStream     keyIn)
-            throws GeneralSecurityException, IOException, PGPException
-    {
-        in = PGPUtil.getDecoderStream(in);
 
-        JcaPGPObjectFactory    pgpFact = new JcaPGPObjectFactory(in);
-        PGPSignatureList    p3;
+    private static void checkSig(
+            String originalFile,
+            InputStream sigIn,
+            InputStream key)
+            throws GeneralSecurityException, IOException, PGPException {
+        sigIn = PGPUtil.getDecoderStream(sigIn);
 
-        Object    o = pgpFact.nextObject();
-        if (o instanceof PGPCompressedData)
-        {
-            PGPCompressedData             c1 = (PGPCompressedData)o;
+        PGPSignatureList sigList;
+        JcaPGPObjectFactory factory = new JcaPGPObjectFactory(sigIn);
 
-            pgpFact = new JcaPGPObjectFactory(c1.getDataStream());
 
-            p3 = (PGPSignatureList)pgpFact.nextObject();
-        }
-        else
-        {
-            p3 = (PGPSignatureList)o;
+        Object nextObject = factory.nextObject();
+        if (nextObject instanceof PGPCompressedData) {
+            PGPCompressedData comp = (PGPCompressedData) nextObject;
+            factory = new JcaPGPObjectFactory(comp.getDataStream());
+            sigList = (PGPSignatureList) factory.nextObject();
+        } else {
+            sigList = (PGPSignatureList) nextObject;
         }
 
-        PGPPublicKeyRingCollection  pgpPubRingCollection = new PGPPublicKeyRingCollection(PGPUtil.getDecoderStream(keyIn), new JcaKeyFingerprintCalculator());
+        JcaKeyFingerprintCalculator thisCalc = new JcaKeyFingerprintCalculator();
+        PGPPublicKeyRingCollection prc = new PGPPublicKeyRingCollection(PGPUtil.getDecoderStream(key), thisCalc);
 
 
-        InputStream                 dIn = new BufferedInputStream(new FileInputStream(fileName));
+        InputStream originalFileIn = new BufferedInputStream(new FileInputStream(originalFile));
 
-        PGPSignature                sig = p3.get(0);
-        PGPPublicKey                key = pgpPubRingCollection.getPublicKey(sig.getKeyID());
+        int index = 0;
+        PGPSignature sig = sigList.get(index);
+        PGPPublicKey thisKey = prc.getPublicKey(sig.getKeyID());
 
-        sig.init(new JcaPGPContentVerifierBuilderProvider().setProvider("BC"), key);
+        JcaPGPContentVerifierBuilderProvider thisProv = new JcaPGPContentVerifierBuilderProvider().setProvider("BC");
+        sig.init(thisProv, thisKey);
 
-        int ch;
-        while ((ch = dIn.read()) >= 0)
-        {
-            sig.update((byte)ch);
+        int character;
+        while ((character = originalFileIn.read()) >= 0) {
+            sig.update((byte) character);
         }
 
-        dIn.close();
+        originalFileIn.close();
 
-        if (sig.verify())
-        {
-            System.out.println("signature verified.");
-        }
-        else
-        {
-            System.out.println("signature verification failed.");
+        if (sig.verify()) {
+            System.err.println("Signature is correct.");
+        } else {
+            System.err.println("Signature does not match.");
         }
     }
 
-    public static void createSignature(
-            String  inputFileName,
-            String  keyFileName,
-            String  outputFileName,
-            char[]  pass,
-            boolean armor)
-            throws GeneralSecurityException, IOException, PGPException
-    {
-        InputStream keyIn = new BufferedInputStream(new FileInputStream(keyFileName));
-        OutputStream out = new BufferedOutputStream(new FileOutputStream(outputFileName));
+    static void createSignature(
+            String fileIn,
+            String keyFile,
+            String fileOut,
+            char[] pword)
+            throws GeneralSecurityException, IOException, PGPException {
+        InputStream keyIn = new BufferedInputStream(new FileInputStream(keyFile));
+        OutputStream out = new BufferedOutputStream(new FileOutputStream(fileOut));
 
-        createSignature(inputFileName, keyIn, out, pass, armor);
+        createSignature(fileIn, keyIn, out, pword);
 
         out.close();
         keyIn.close();
     }
 
-    public static void createSignature(
-            String          fileName,
-            InputStream     keyIn,
-            OutputStream    out,
-            char[]          pass,
-            boolean         armor)
-            throws GeneralSecurityException, IOException, PGPException
-    {
-        if (armor)
-        {
-            out = new ArmoredOutputStream(out);
+    private static void createSignature(
+            String fileName,
+            InputStream keyStreamIn,
+            OutputStream fileStreamOut,
+            char[] pword)
+            throws GeneralSecurityException, IOException, PGPException {
+        fileStreamOut = new ArmoredOutputStream(fileStreamOut);
+
+        PGPSecretKey secretKey = Utilities.retrieveSecretKey(keyStreamIn);
+        PBESecretKeyDecryptor thisDecryptor = new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(pword);
+        PGPPrivateKey privateKey = secretKey.extractPrivateKey(thisDecryptor);
+        PGPContentSignerBuilder thisSigner = new JcaPGPContentSignerBuilder(secretKey.getPublicKey().getAlgorithm(), PGPUtil.SHA1).setProvider("BC");
+        PGPSignatureGenerator sigGen = new PGPSignatureGenerator(thisSigner);
+
+        int sigType = PGPSignature.BINARY_DOCUMENT;
+        sigGen.init(sigType, privateKey);
+        BCPGOutputStream outStream = new BCPGOutputStream(fileStreamOut);
+        InputStream readFileIn = new BufferedInputStream(new FileInputStream(fileName));
+
+        int character;
+        while ((character = readFileIn.read()) >= 0) {
+            sigGen.update((byte) character);
         }
-
-        PGPSecretKey             pgpSec = Utils.readSecretKey(keyIn);
-        PGPPrivateKey            pgpPrivKey = pgpSec.extractPrivateKey(new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(pass));
-        PGPSignatureGenerator    sGen = new PGPSignatureGenerator(new JcaPGPContentSignerBuilder(pgpSec.getPublicKey().getAlgorithm(), PGPUtil.SHA1).setProvider("BC"));
-
-        sGen.init(PGPSignature.BINARY_DOCUMENT, pgpPrivKey);
-
-        BCPGOutputStream         bOut = new BCPGOutputStream(out);
-
-        InputStream              fIn = new BufferedInputStream(new FileInputStream(fileName));
-
-        int ch;
-        while ((ch = fIn.read()) >= 0)
-        {
-            sGen.update((byte)ch);
-        }
-
-        fIn.close();
-
-        sGen.generate().encode(bOut);
-
-        if (armor)
-        {
-            out.close();
-        }
-    }
-
-    public static void main(
-            String[] args)
-            throws Exception
-    {
-        Security.addProvider(new BouncyCastleProvider());
-
-        if (args[0].equals("-s"))
-        {
-            if (args[1].equals("-a"))
-            {
-                createSignature(args[2], args[3], args[2] + ".asc", args[4].toCharArray(), true);
-            }
-            else
-            {
-                createSignature(args[1], args[2], args[1] + ".bpg", args[3].toCharArray(), false);
-            }
-        }
-        else if (args[0].equals("-v"))
-        {
-            verifySignature(args[1], args[2], args[3]);
-        }
-        else
-        {
-            System.err.println("usage: DetachedSignatureProcessor [-s [-a] file keyfile passPhrase]|[-v file sigFile keyFile]");
-        }
+        readFileIn.close();
+        sigGen.generate().encode(outStream);
+        fileStreamOut.close();
     }
 }
+
