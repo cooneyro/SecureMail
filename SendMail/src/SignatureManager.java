@@ -20,7 +20,7 @@ import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProv
 /**
  * For checking and creating detached signatures
  */
-public class SignatureManager {
+class SignatureManager {
     static void checkSig(
             String originalFile,
             String sigFile,

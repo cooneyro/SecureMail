@@ -36,7 +36,6 @@ public class GetMail {
             }
             Message[] allMessages = thisFold.getMessages();
             System.out.println("Total number of messages : " + thisFold.getMessageCount());
-            System.out.println(allMessages.length);
             for (int i = allMessages.length - 1; i >= 0; i--) {
                 System.out.println("-----------------------------------------------------------------------------");
                 System.out.println("Email number " + (i + 1) + ":");
@@ -71,7 +70,13 @@ public class GetMail {
                                 }
 
                             } else if (content.contains("-----BEGIN PGP MESSAGE-----")) {
-                                decryptPGP(content);
+                                try{
+                                    decryptPGP(content);
+                                }catch(IllegalArgumentException e){
+                                    System.out.println("Couldn't find key");
+                                    break;
+                                }
+
                             }else{
                                 System.out.println("Body: \n" + content);
                             }

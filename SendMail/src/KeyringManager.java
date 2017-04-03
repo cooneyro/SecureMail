@@ -70,10 +70,10 @@ public class KeyringManager {
             String addID = sc.next();
             System.out.println("Type the full filename of their key");
             String filename = sc.next();
-            InputStream inStream = new FileInputStream("PubKeyCollection.pkr");
+            InputStream inStream = new FileInputStream("keys/PubKeyCollection.pkr");
             PGPPublicKeyRingCollection thisCollection = new PGPPublicKeyRingCollection(
                     PGPUtil.getDecoderStream(inStream), new JcaKeyFingerprintCalculator());
-            PGPPrivateKey thisPriv = Utilities.retrieveSecretKey("secret.asc").extractPrivateKey(new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(SendEmail.pass));
+            PGPPrivateKey thisPriv = Utilities.retrieveSecretKey("keys/secret.asc").extractPrivateKey(new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(SendEmail.pass));
             PGPKeyPair thisPair = new PGPKeyPair(Utilities.getPubKey(filename),thisPriv);
             PGPDigestCalculator thisCalc = new JcaPGPDigestCalculatorProviderBuilder().build().get(HashAlgorithmTags.SHA1);
             JcaPGPContentSignerBuilder thisCSBuilder =  new JcaPGPContentSignerBuilder(thisPair.getPublicKey().getAlgorithm(), HashAlgorithmTags.SHA1);
@@ -83,7 +83,7 @@ public class KeyringManager {
             PGPSignatureSubpacketVector v2 = null;
             PGPKeyRingGenerator keyRingGen = new PGPKeyRingGenerator(sig, thisPair, addID, thisCalc, v1, v2,thisCSBuilder ,thisEncryptor);
             thisCollection = PGPPublicKeyRingCollection.addPublicKeyRing(thisCollection,keyRingGen.generatePublicKeyRing());
-            OutputStream out1 = new FileOutputStream("PubKeyCollection.pkr");
+            OutputStream out1 = new FileOutputStream("keys/PubKeyCollection.pkr");
             out1 = new ArmoredOutputStream(out1);
 
             thisCollection.encode(out1);
@@ -100,12 +100,12 @@ public class KeyringManager {
         }else if(thisChar==('r')){
             System.out.println("Type the ID of the person whose key you wish to remove");
             String remove = sc.next().trim();
-            InputStream inStream = new FileInputStream("PubKeyCollection.pkr");
+            InputStream inStream = new FileInputStream("keys/PubKeyCollection.pkr");
             PGPPublicKeyRingCollection thisCollection = new PGPPublicKeyRingCollection(
                     PGPUtil.getDecoderStream(inStream), new JcaKeyFingerprintCalculator());
             Iterator<PGPPublicKeyRing> thisList = thisCollection.getKeyRings(remove);
             thisCollection = PGPPublicKeyRingCollection.removePublicKeyRing(thisCollection,thisList.next());
-            OutputStream out1 = new FileOutputStream("PubKeyCollection.pkr");
+            OutputStream out1 = new FileOutputStream("keys/PubKeyCollection.pkr");
             out1 = new ArmoredOutputStream(out1);
 
             thisCollection.encode(out1);
