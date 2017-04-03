@@ -73,9 +73,7 @@ public class EncryptionHandler {
             }
 
             InputStream dataIn = data.getDataStream(new JcePublicKeyDataDecryptorFactoryBuilder().setProvider("BC").build(privateKey));
-
             JcaPGPObjectFactory newObjectFactory = new JcaPGPObjectFactory(dataIn);
-
             Object part = newObjectFactory.nextObject();
 
             if (part instanceof PGPCompressedData) {

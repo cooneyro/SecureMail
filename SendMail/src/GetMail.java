@@ -67,6 +67,8 @@ public class GetMail {
                                     e.printStackTrace();
                                 } catch (org.bouncycastle.openpgp.PGPException p) {
                                     p.printStackTrace();
+                                } catch (java.lang.NullPointerException n){
+                                    System.err.println("Key not found");
                                 }
 
                             } else if (content.contains("-----BEGIN PGP MESSAGE-----")) {
