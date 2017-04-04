@@ -6,6 +6,7 @@ import javax.mail.*;
 import com.sun.mail.imap.IMAPFolder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
+// For retrieving emails
 public class GetMail {
 
     public static void main(String[] args) throws IllegalArgumentException, MessagingException, IOException, java.security.NoSuchProviderException, java.lang.InterruptedException {
@@ -15,6 +16,7 @@ public class GetMail {
         String thisSubject;
         try {
             Properties properties = System.getProperties();
+            //settings for gmail login
             String protocol = "mail.store.protocol";
             String store = "imaps";
             String hostname = "imap.googlemail.com";
@@ -24,6 +26,7 @@ public class GetMail {
             Session thisSession = Session.getDefaultInstance(properties, null);
 
             thisStore = thisSession.getStore(store);
+            //set gmail username and password for login
             String username = "redacted";
             String pw = "redacted";
             thisStore.connect(hostname, username,pw);
@@ -36,6 +39,7 @@ public class GetMail {
             }
             Message[] allMessages = thisFold.getMessages();
             System.out.println("Total number of messages : " + thisFold.getMessageCount());
+            //begin from most recent mail received
             for (int i = allMessages.length - 1; i >= 0; i--) {
                 System.out.println("-----------------------------------------------------------------------------");
                 System.out.println("Email number " + (i + 1) + ":");
@@ -45,8 +49,8 @@ public class GetMail {
                 System.out.println("Subject: " + thisSubject);
                 System.out.println("From: " + thisMessage.getFrom()[0]);
                 String content = thisMessage.getContent().toString();
-
                 Object thisObj = thisMessage.getContent();
+                //if there are multiple parts to email
                 if (thisObj instanceof Multipart) {
                     Multipart thisContent = (Multipart) thisMessage.getContent();
                     int count = thisContent.getCount();
@@ -55,7 +59,9 @@ public class GetMail {
 
                         Part thisPart = thisContent.getBodyPart(iterate);
                         content = thisPart.getContent().toString();
+                        //ignore HTML
                         if (!content.contains("<!DOCTYPE html")) {
+                            //search for signature or message
                             if (content.contains("-----BEGIN PGP SIGNATURE-----")) {
                                 String publicKeyCollection = "keys/PubKeyCollection.pkr";
                                 PrintWriter out = new PrintWriter("misc/sigtest.txt");
@@ -86,7 +92,7 @@ public class GetMail {
                         iterate++;
 
                     }
-                } else if (content.contains("-----BEGIN PGP MESSAGE-----")) {
+                } else if (content.contains("-----BEGIN PGP MESSAGE-----")) { //in case message is single part PGP.
                     decryptPGP(content);
                 }
 
@@ -106,6 +112,12 @@ public class GetMail {
 
     }
 
+    /**
+     *
+     * @param content Content of email to be decrypted
+     * @throws java.io.IOException
+     * @throws java.security.NoSuchProviderException
+     */
     private static void decryptPGP(String content) throws java.io.IOException, java.security.NoSuchProviderException {
         String secretPath = "keys/secret.asc";
         PrintWriter out = new PrintWriter("misc/decodemail.txt");

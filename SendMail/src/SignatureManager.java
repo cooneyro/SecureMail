@@ -21,6 +21,15 @@ import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProv
  * For checking and creating detached signatures
  */
 class SignatureManager {
+    /**
+     *
+     * @param originalFile Original file sent (encrypted using public key)
+     * @param sigFile Signed file (signed with private key)
+     * @param keyFile Public key file
+     * @throws GeneralSecurityException
+     * @throws IOException
+     * @throws PGPException
+     */
     static void checkSig(
             String originalFile,
             String sigFile,
@@ -35,6 +44,15 @@ class SignatureManager {
         sigIn.close();
     }
 
+    /**
+     *
+     * @param originalFile Original file
+     * @param sigIn Signed file stream
+     * @param key Public key file stream
+     * @throws GeneralSecurityException
+     * @throws IOException
+     * @throws PGPException
+     */
     private static void checkSig(
             String originalFile,
             InputStream sigIn,
@@ -46,6 +64,7 @@ class SignatureManager {
         JcaPGPObjectFactory factory = new JcaPGPObjectFactory(sigIn);
 
 
+        //decompress data
         Object nextObject = factory.nextObject();
         if (nextObject instanceof PGPCompressedData) {
             PGPCompressedData comp = (PGPCompressedData) nextObject;
@@ -65,6 +84,8 @@ class SignatureManager {
         PGPSignature sig = sigList.get(index);
         PGPPublicKey thisKey = prc.getPublicKey(sig.getKeyID());
 
+
+
         JcaPGPContentVerifierBuilderProvider thisProv = new JcaPGPContentVerifierBuilderProvider().setProvider("BC");
         sig.init(thisProv, thisKey);
 
@@ -75,6 +96,7 @@ class SignatureManager {
 
         originalFileIn.close();
 
+        //check signature
         if (sig.verify()) {
             System.err.println("Signature is correct.");
         } else {
@@ -82,6 +104,16 @@ class SignatureManager {
         }
     }
 
+    /**
+     *
+     * @param fileIn File to be signed
+     * @param keyFile Private key file
+     * @param fileOut File for signed content to be output to
+     * @param pword Key file password
+     * @throws GeneralSecurityException
+     * @throws IOException
+     * @throws PGPException
+     */
     static void createSignature(
             String fileIn,
             String keyFile,
@@ -97,6 +129,16 @@ class SignatureManager {
         keyIn.close();
     }
 
+    /**
+     *
+     * @param fileName File to be signed (path)
+     * @param keyStreamIn Input stream private key
+     * @param fileStreamOut Output stream of signed content
+     * @param pword Password associated with private key
+     * @throws GeneralSecurityException
+     * @throws IOException
+     * @throws PGPException
+     */
     private static void createSignature(
             String fileName,
             InputStream keyStreamIn,
@@ -105,11 +147,14 @@ class SignatureManager {
             throws GeneralSecurityException, IOException, PGPException {
         fileStreamOut = new ArmoredOutputStream(fileStreamOut);
 
+        //retrieve and extract private key
         PGPSecretKey secretKey = Utilities.retrieveSecretKey(keyStreamIn);
         PBESecretKeyDecryptor thisDecryptor = new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(pword);
         PGPPrivateKey privateKey = secretKey.extractPrivateKey(thisDecryptor);
         PGPContentSignerBuilder thisSigner = new JcaPGPContentSignerBuilder(secretKey.getPublicKey().getAlgorithm(), PGPUtil.SHA1).setProvider("BC");
+        //use signature generator to generate a signature
         PGPSignatureGenerator sigGen = new PGPSignatureGenerator(thisSigner);
+
 
         int sigType = PGPSignature.BINARY_DOCUMENT;
         sigGen.init(sigType, privateKey);
@@ -121,6 +166,7 @@ class SignatureManager {
             sigGen.update((byte) character);
         }
         readFileIn.close();
+        //generate signature file to output stream
         sigGen.generate().encode(outStream);
         fileStreamOut.close();
     }

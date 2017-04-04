@@ -11,9 +11,19 @@ import org.bouncycastle.openpgp.operator.PGPDigestCalculator;
 import java.util.*;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
-
+//for managing key ring collection
 public class KeyringManager {
 
+    /**
+     *
+     * @param in initial key pair to be used for creating collection
+     * @param id identity associated with key pair
+     * @param pass password associated with key pair
+     * @param name name of file that will store key ring collection
+     * @throws java.io.IOException
+     * @throws org.bouncycastle.openpgp.PGPException
+     * @throws InterruptedException
+     */
     public static void createKeyRingCollection(PGPKeyPair in, String id, String pass, String name) throws java.io.IOException, org.bouncycastle.openpgp.PGPException, InterruptedException {
 
         char[] givenPW = pass.toCharArray();
@@ -37,6 +47,7 @@ public class KeyringManager {
 
         out1 = new FileOutputStream(name + ".pkr");
         InputStream inStream = new FileInputStream("keys/FirstKey.pkr");
+        //create and output key ring collection
         PGPPublicKeyRingCollection thisCollection = new PGPPublicKeyRingCollection(
                 PGPUtil.getDecoderStream(inStream), new JcaKeyFingerprintCalculator());
         out1 = new ArmoredOutputStream(out1);
@@ -45,6 +56,7 @@ public class KeyringManager {
         out1.close();
 
 
+        //create file to store identities of public keys input by user in future
         File f = new File("misc/Identities.txt");
         f.createNewFile();
         String current = Utilities.readFile("misc/Identities.txt",StandardCharsets.US_ASCII);
@@ -62,9 +74,9 @@ public class KeyringManager {
         System.out.println("Type l to list identities currently stored");
 
         char thisChar = sc.next().charAt(0);
+
+        //add person's public key to keyring using their id and public key file
         if(thisChar==('a')){
-
-
 
             System.out.println("Type the ID (name) of the person whose key you wish to add (one word)");
             String addID = sc.next();
@@ -73,6 +85,7 @@ public class KeyringManager {
             InputStream inStream = new FileInputStream("keys/PubKeyCollection.pkr");
             PGPPublicKeyRingCollection thisCollection = new PGPPublicKeyRingCollection(
                     PGPUtil.getDecoderStream(inStream), new JcaKeyFingerprintCalculator());
+            //creating key ring to add to collection
             PGPPrivateKey thisPriv = Utilities.retrieveSecretKey("keys/secret.asc").extractPrivateKey(new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(SendEmail.pass));
             PGPKeyPair thisPair = new PGPKeyPair(Utilities.getPubKey(filename),thisPriv);
             PGPDigestCalculator thisCalc = new JcaPGPDigestCalculatorProviderBuilder().build().get(HashAlgorithmTags.SHA1);
@@ -89,6 +102,7 @@ public class KeyringManager {
             thisCollection.encode(out1);
             out1.close();
 
+            //update identity list
             File f = new File("misc/Identities.txt");
             f.createNewFile();
             String current = Utilities.readFile("misc/Identities.txt",StandardCharsets.US_ASCII);
@@ -97,12 +111,15 @@ public class KeyringManager {
             out.println(current);
             out.close();
 
+
+            //remove person's public key from key ring given their ID
         }else if(thisChar==('r')){
             System.out.println("Type the ID of the person whose key you wish to remove");
             String remove = sc.next().trim();
             InputStream inStream = new FileInputStream("keys/PubKeyCollection.pkr");
             PGPPublicKeyRingCollection thisCollection = new PGPPublicKeyRingCollection(
                     PGPUtil.getDecoderStream(inStream), new JcaKeyFingerprintCalculator());
+            //find corresponding public key and remove it
             Iterator<PGPPublicKeyRing> thisList = thisCollection.getKeyRings(remove);
             thisCollection = PGPPublicKeyRingCollection.removePublicKeyRing(thisCollection,thisList.next());
             OutputStream out1 = new FileOutputStream("keys/PubKeyCollection.pkr");
@@ -111,6 +128,7 @@ public class KeyringManager {
             thisCollection.encode(out1);
             out1.close();
 
+            //update identity list
             File inFile = new File("misc/Identities.txt");
             File tempF = new File("misc/tempFile.txt");
 
@@ -136,7 +154,7 @@ public class KeyringManager {
             tempF.delete();
 
 
-        }else if(thisChar==('l')){
+        }else if(thisChar==('l')){ //print IDs of all public keys stored
             System.out.println("List of public key IDs you currently store:");
             System.out.println(Utilities.readFile("misc/Identities.txt", StandardCharsets.US_ASCII));
         }

@@ -8,13 +8,13 @@ import javax.activation.FileDataSource;
 import javax.mail.*;
 import javax.mail.internet.*;
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.security.Security;
 import java.util.Date;
 import java.util.Properties;
 
 import static java.nio.charset.StandardCharsets.US_ASCII;
 
+//for sending emails
 public class SendEmail {
     static char[] pass = {'C'};
 
@@ -31,22 +31,18 @@ public class SendEmail {
         Security.addProvider(new BouncyCastleProvider());
         String fileName = "sendmail/SendingMail.txt";
         String sigOutputFileName = "misc/sig.txt";
-        //String outputFileName = "output.txt";
         String secretPath = "keys/secret.asc";
         File output = new File(sigOutputFileName);
-        File secret = new File(secretPath);
         output.createNewFile();
         String id = "R";
-        //InputStream streamIn = new FileInputStream(secret);
-        //OutputStream streamOut = new FileOutputStream(output,false);
 
-
+        //create signature to be attached to email
         SignatureManager.createSignature(fileName,secretPath,sigOutputFileName,pass);
 
 
         String publicPath = "keys/PubKeyCollection.pkr";
 
-
+        //encrypt body of message
         String encryptedOutputFileName = "misc/output.txt";
         File output2 = new File(encryptedOutputFileName);
         output2.createNewFile();
@@ -56,8 +52,8 @@ public class SendEmail {
 
         String message = Utilities.readFile(encryptedOutputFileName,US_ASCII);
 
-        try{
-            Send("redacted","redacted","testaccrc@gmail.com","Example title",message);
+        try{ //enter sender's google username and password below
+            send("redacted","redacted","testaccrc@gmail.com","Example title",message);
         }catch(javax.mail.internet.AddressException e){
             e.printStackTrace();
         }catch (MessagingException c){
@@ -68,12 +64,23 @@ public class SendEmail {
     }
 
 
-
-    private static void Send(final String user, final String pw, String recipient, String emailTitle, String body) throws AddressException, MessagingException, javax.mail.MessagingException{
-        SendEmail.Send(user, pw, recipient, "", emailTitle, body);
+    private static void send(final String user, final String pw, String recipient, String emailTitle, String body) throws AddressException, MessagingException, javax.mail.MessagingException{
+        SendEmail.send(user, pw, recipient, "", emailTitle, body);
     }
 
-    private static void Send(final String username, final String password, String recipientEmail, String ccEmail, String title, String message) throws AddressException, MessagingException, javax.mail.MessagingException {
+    /**
+     *
+     * @param user User's google username
+     * @param pw User's google password
+     * @param recipient Recipient of email
+     * @param cc Extra recipients to be emailed carbon copies
+     * @param emailTitle Title of email
+     * @param body Body of email
+     * @throws AddressException
+     * @throws MessagingException
+     * @throws javax.mail.MessagingException
+     */
+    private static void send(final String user, final String pw, String recipient, String cc, String emailTitle, String body) throws AddressException, MessagingException, javax.mail.MessagingException {
         Security.addProvider(new com.sun.net.ssl.internal.ssl.Provider());
         final String FACTORY = "javax.net.ssl.SSLSocketFactory";
 
@@ -88,24 +95,24 @@ public class SendEmail {
 
         Session session = Session.getInstance(properties, null);
 
-        // -- Create a new message --
+        //create multipart message
         Multipart multipart = new MimeMultipart();
 
         final MimeMessage msg = new MimeMessage(session);
 
         try {
 
-            // -- Set the FROM and TO fields --
-            msg.setFrom(new InternetAddress(username + "@gmail.com"));
-            msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse(recipientEmail, false));
+            // set sender and recipient of email
+            msg.setFrom(new InternetAddress(user + "@gmail.com"));
+            msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse(recipient, false));
 
-            if (ccEmail.length() > 0) {
-                msg.setRecipients(Message.RecipientType.CC, InternetAddress.parse(ccEmail, false));
+            if (cc.length() > 0) {
+                msg.setRecipients(Message.RecipientType.CC, InternetAddress.parse(cc, false));
             }
 
-            msg.setSubject(title);
+            msg.setSubject(emailTitle);
             BodyPart messageBodyPart = new MimeBodyPart();
-            messageBodyPart.setText(message);
+            messageBodyPart.setText(body);
             multipart.addBodyPart(messageBodyPart);
 
             BodyPart attachmentPart = new MimeBodyPart();
@@ -115,15 +122,14 @@ public class SendEmail {
             attachmentPart.setFileName(filename);
             multipart.addBodyPart(attachmentPart);
 
-            //msg.setText(message, "utf-8");
             msg.setSentDate(new Date());
 
             msg.setContent(multipart);
-            SMTPTransport t = (SMTPTransport) session.getTransport("smtps");
+            SMTPTransport transporter = (SMTPTransport) session.getTransport("smtps");
 
-            t.connect("smtp.gmail.com", username, password);
-            t.sendMessage(msg, msg.getAllRecipients());
-            t.close();
+            transporter.connect("smtp.gmail.com", user, pw);
+            transporter.sendMessage(msg, msg.getAllRecipients());
+            transporter.close();
         } catch (javax.mail.MessagingException e) {
             e.printStackTrace();
         }

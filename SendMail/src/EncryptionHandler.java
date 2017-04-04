@@ -21,6 +21,15 @@ import org.bouncycastle.openpgp.operator.jcajce.JcePGPDataEncryptorBuilder;
  * Handles encryption and decryption of files
  */
 public class EncryptionHandler {
+    /**
+     *
+     * @param fileInput file to be decrypted
+     * @param keyInput key collection for decrypting
+     * @param pass password for keys
+     * @param fileOutput file to which decryption will be output to
+     * @throws IOException
+     * @throws NoSuchProviderException
+     */
     static void getDecrypted(
             String fileInput,
             String keyInput,
@@ -35,7 +44,13 @@ public class EncryptionHandler {
     }
 
     /**
-     * decrypt the passed in message stream
+     *
+     * @param fileInput Stream of file to be decrypted
+     * @param keyInput Stream of key collection to be used to decrypt
+     * @param pass Password to keys
+     * @param fileOutput output stream
+     * @throws IOException
+     * @throws NoSuchProviderException
      */
     private static void getDecrypted(
             InputStream fileInput,
@@ -49,6 +64,8 @@ public class EncryptionHandler {
             JcaPGPObjectFactory objFactory = new JcaPGPObjectFactory(fileInput);
             PGPEncryptedDataList encDataList;
 
+            // Looking for encrypted data
+
             Object nextFactObject = objFactory.nextObject();
             if (nextFactObject instanceof PGPEncryptedDataList) {
                 encDataList = (PGPEncryptedDataList) nextFactObject;
@@ -61,7 +78,7 @@ public class EncryptionHandler {
             PGPPublicKeyEncryptedData data = null;
             PGPSecretKeyRingCollection secretKeys = new PGPSecretKeyRingCollection(
                     PGPUtil.getDecoderStream(keyInput), new JcaKeyFingerprintCalculator());
-
+            //find private key for decrypting
             while (privateKey == null && iterate.hasNext()) {
                 data = (PGPPublicKeyEncryptedData) iterate.next();
 
@@ -72,17 +89,19 @@ public class EncryptionHandler {
                 throw new IllegalArgumentException("Error locating key for message.");
             }
 
+            //build decryptor
             InputStream dataIn = data.getDataStream(new JcePublicKeyDataDecryptorFactoryBuilder().setProvider("BC").build(privateKey));
             JcaPGPObjectFactory newObjectFactory = new JcaPGPObjectFactory(dataIn);
             Object part = newObjectFactory.nextObject();
 
+            //decompress data
             if (part instanceof PGPCompressedData) {
                 PGPCompressedData compData = (PGPCompressedData) part;
                 JcaPGPObjectFactory objFact = new JcaPGPObjectFactory(compData.getDataStream());
 
                 part = objFact.nextObject();
             }
-
+            //output data that has been decrypted
             if (part instanceof PGPLiteralData) {
                 PGPLiteralData thisData = (PGPLiteralData) part;
 
@@ -117,6 +136,16 @@ public class EncryptionHandler {
         }
     }
 
+    /**
+     *
+     * @param encryptedFile File to which encrypted output will be written
+     * @param inputFile File to be encrypted
+     * @param keyFile Key collection file
+     * @param id Identity of recipient of e-mail
+     * @throws IOException
+     * @throws NoSuchProviderException
+     * @throws PGPException
+     */
     static void getEncrypted(
             String encryptedFile,
             String inputFile,
@@ -126,6 +155,7 @@ public class EncryptionHandler {
         InputStream inStream = new FileInputStream(keyFile);
         PGPPublicKeyRingCollection thisCollection = new PGPPublicKeyRingCollection(
                 PGPUtil.getDecoderStream(inStream), new JcaKeyFingerprintCalculator());
+        //find corresponding public key to identity
         Iterator<PGPPublicKeyRing> thisList = thisCollection.getKeyRings(id);
         OutputStream outStream = new BufferedOutputStream(new FileOutputStream(encryptedFile));
         PGPPublicKey key = thisList.next().getPublicKey();
@@ -133,6 +163,14 @@ public class EncryptionHandler {
         outStream.close();
     }
 
+    /**
+     *
+     * @param encryptedFile Output stream of encrypted data
+     * @param fileName Input stream of data to be encrypted
+     * @param encKey Key to be used for encryption
+     * @throws IOException
+     * @throws NoSuchProviderException
+     */
     private static void getEncrypted(
             OutputStream encryptedFile,
             String fileName,
@@ -143,12 +181,14 @@ public class EncryptionHandler {
 
         try {
             byte[] fileToBytes = Utilities.compFile(fileName, CompressionAlgorithmTags.ZIP);
+            //use data encryptor for creating encrypted data generator
             JcePGPDataEncryptorBuilder thisBuilder = new JcePGPDataEncryptorBuilder(PGPEncryptedData.CAST5);
             thisBuilder.setWithIntegrityPacket(true);
             thisBuilder.setSecureRandom(new SecureRandom());
             thisBuilder.setProvider("BC");
             PGPEncryptedDataGenerator dataGen = new PGPEncryptedDataGenerator(thisBuilder);
             dataGen.addMethod(new JcePublicKeyKeyEncryptionMethodGenerator(encKey).setProvider("BC"));
+            //use encrypted data generator to write to file
             OutputStream writeToFile = dataGen.open(encryptedFile, fileToBytes.length);
             writeToFile.write(fileToBytes);
             writeToFile.close();

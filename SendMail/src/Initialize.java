@@ -13,7 +13,7 @@ import org.bouncycastle.bcpg.HashAlgorithmTags;
 import java.util.Date;
 import java.util.Scanner;
 
-//Loading keys to program or creating
+//Loading keys to program or creating keys for new user
 public class Initialize {
     public static void main(String[] args) throws java.lang.Exception {
         Security.addProvider(new BouncyCastleProvider());
@@ -39,11 +39,25 @@ public class Initialize {
             createKeyPair(out1, out2, kp, "R", SendEmail.pass);
 
             PGPKeyPair thisPair = new PGPKeyPair(Utilities.getPubKey("keys/pub.asc"), Utilities.retrieveSecretKey("keys/secret.asc").extractPrivateKey(new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(SendEmail.pass)));
+            //create a new key ring collection for this user
             KeyringManager.createKeyRingCollection(thisPair, "R", "C", "keys/PubKeyCollection");
         }
 
     }
 
+    /**
+     *
+     * @param secretKeyStream data stream of secret key to be used to create pair (holds private + public)
+     * @param publicKeyStream data stream of public key
+     * @param keyPairIn JcaPGPKeyPair to be converted to PGPKeyPair
+     * @param name name of keypair identity
+     * @param passPhrase password to access
+     * @throws IOException
+     * @throws InvalidKeyException
+     * @throws NoSuchProviderException
+     * @throws SignatureException
+     * @throws PGPException
+     */
     private static void createKeyPair(
             OutputStream secretKeyStream,
             OutputStream publicKeyStream,
@@ -55,16 +69,20 @@ public class Initialize {
 
         PGPDigestCalculator thisCalc = new JcaPGPDigestCalculatorProviderBuilder().build().get(HashAlgorithmTags.SHA1);
         PGPKeyPair thisPair = new JcaPGPKeyPair(PGPPublicKey.RSA_GENERAL, keyPairIn, new Date());
+        //use default PGP certifcation
         int sigCert = PGPSignature.DEFAULT_CERTIFICATION;
         PGPSignatureSubpacketVector v1 = null;
         PGPSignatureSubpacketVector v2 = null;
         JcaPGPContentSignerBuilder thisCSBuilder = new JcaPGPContentSignerBuilder(thisPair.getPublicKey().getAlgorithm(), HashAlgorithmTags.SHA1);
         PBESecretKeyEncryptor thisEncryptor = new JcePBESecretKeyEncryptorBuilder(PGPEncryptedData.CAST5, thisCalc).setProvider("BC").build(passPhrase);
+        //use contentsignerbuilder and encryptor created above to create secret key
         PGPSecretKey thisKey = new PGPSecretKey(sigCert, thisPair, name, thisCalc, v1, v2,thisCSBuilder ,thisEncryptor );
 
+        //output secret key to stream
         thisKey.encode(secretKeyStream);
 
         secretKeyStream.close();
+        //output public key
         publicKeyStream = new ArmoredOutputStream(publicKeyStream);
         PGPPublicKey key = thisKey.getPublicKey();
         key.encode(publicKeyStream);
