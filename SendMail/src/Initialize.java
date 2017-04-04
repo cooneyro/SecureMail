@@ -3,14 +3,14 @@ import org.bouncycastle.openpgp.operator.PBESecretKeyEncryptor;
 import org.bouncycastle.openpgp.operator.PGPDigestCalculator;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
+
 import org.bouncycastle.openpgp.operator.jcajce.*;
-import java.io.OutputStream;
 import org.bouncycastle.openpgp.*;
 import java.security.*;
 import org.bouncycastle.bcpg.HashAlgorithmTags;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.Scanner;
 
 //Loading keys to program or creating keys for new user
@@ -24,7 +24,7 @@ public class Initialize {
         System.out.println("Note if you create new keys, your default identity is R, password is C");
         int choice = sc.nextInt();
         if (choice == 1) {
-            PGPKeyPair thisPair = new PGPKeyPair(Utilities.getPubKey("keys/pub.asc"), Utilities.retrieveSecretKey("keys/secret.asc").extractPrivateKey(new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(SendEmail.pass)));
+            PGPKeyPair thisPair = new PGPKeyPair(getPubKey("keys/pub.asc"), retrieveSecretKey("keys/secret.asc").extractPrivateKey(new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(SendEmail.pass)));
             KeyringManager.createKeyRingCollection(thisPair, "R", "C", "keys/PubKeyCollection");
         } else {
             KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", "BC");
@@ -38,7 +38,7 @@ public class Initialize {
 
             createKeyPair(out1, out2, kp, "R", SendEmail.pass);
 
-            PGPKeyPair thisPair = new PGPKeyPair(Utilities.getPubKey("keys/pub.asc"), Utilities.retrieveSecretKey("keys/secret.asc").extractPrivateKey(new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(SendEmail.pass)));
+            PGPKeyPair thisPair = new PGPKeyPair(getPubKey("keys/pub.asc"), retrieveSecretKey("keys/secret.asc").extractPrivateKey(new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(SendEmail.pass)));
             //create a new key ring collection for this user
             KeyringManager.createKeyRingCollection(thisPair, "R", "C", "keys/PubKeyCollection");
         }
@@ -87,5 +87,44 @@ public class Initialize {
         PGPPublicKey key = thisKey.getPublicKey();
         key.encode(publicKeyStream);
         publicKeyStream.close();
+    }
+
+    //Get a public key from a file
+    static PGPPublicKey getPubKey(String file) throws IOException, PGPException {
+        InputStream key = new BufferedInputStream(new FileInputStream(file));
+        PGPPublicKey publicKey = getPubKey(key);
+        key.close();
+        return publicKey;
+    }
+
+    //Get a public key from an input stream
+    private static PGPPublicKey getPubKey(InputStream in) throws IOException, PGPException {
+        JcaKeyFingerprintCalculator thisCalc = new JcaKeyFingerprintCalculator();
+        PGPPublicKeyRingCollection pkrc = new PGPPublicKeyRingCollection(
+                PGPUtil.getDecoderStream(in), thisCalc);
+
+
+        Iterator ringIterator = pkrc.getKeyRings();
+        //check for valid key
+        while (ringIterator.hasNext()) {
+            PGPPublicKeyRing keyRing = (PGPPublicKeyRing) ringIterator.next();
+            Iterator keyIterator = keyRing.getPublicKeys();
+            while (keyIterator.hasNext()) {
+                PGPPublicKey key = (PGPPublicKey) keyIterator.next();
+                if (key.isEncryptionKey()) {
+                    return key;
+                }
+            }
+        }
+
+        throw new IllegalArgumentException("Couldn't find encryption key in key ring.");
+    }
+
+    //return a secret key given its file name
+    static PGPSecretKey retrieveSecretKey(String file) throws IOException, PGPException {
+        InputStream key = new BufferedInputStream(new FileInputStream(file));
+        PGPSecretKey secretKey = SignatureManager.retrieveSecretKey(key);
+        key.close();
+        return secretKey;
     }
 }

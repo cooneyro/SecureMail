@@ -15,6 +15,8 @@ import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder;
 import java.io.BufferedOutputStream;
 import org.bouncycastle.openpgp.operator.PGPContentSignerBuilder;
 import java.io.BufferedInputStream;
+import java.util.Iterator;
+
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 
 /**
@@ -148,7 +150,7 @@ class SignatureManager {
         fileStreamOut = new ArmoredOutputStream(fileStreamOut);
 
         //retrieve and extract private key
-        PGPSecretKey secretKey = Utilities.retrieveSecretKey(keyStreamIn);
+        PGPSecretKey secretKey = retrieveSecretKey(keyStreamIn);
         PBESecretKeyDecryptor thisDecryptor = new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(pword);
         PGPPrivateKey privateKey = secretKey.extractPrivateKey(thisDecryptor);
         PGPContentSignerBuilder thisSigner = new JcaPGPContentSignerBuilder(secretKey.getPublicKey().getAlgorithm(), PGPUtil.SHA1).setProvider("BC");
@@ -169,6 +171,29 @@ class SignatureManager {
         //generate signature file to output stream
         sigGen.generate().encode(outStream);
         fileStreamOut.close();
+    }
+
+    //return a secret key given its input stream
+    static PGPSecretKey retrieveSecretKey(InputStream input) throws IOException, PGPException {
+        PGPSecretKeyRingCollection skrc = new PGPSecretKeyRingCollection(
+                PGPUtil.getDecoderStream(input), new JcaKeyFingerprintCalculator());
+
+        Iterator ringIterator = skrc.getKeyRings();
+        while (ringIterator.hasNext()) {
+            PGPSecretKeyRing keyRing = (PGPSecretKeyRing) ringIterator.next();
+
+            //returns first private key found
+            Iterator keyIterator = keyRing.getSecretKeys();
+            while (keyIterator.hasNext()) {
+                PGPSecretKey thisKey = (PGPSecretKey) keyIterator.next();
+
+                if (thisKey.isSigningKey()) {
+                    return thisKey;
+                }
+            }
+        }
+
+        throw new IllegalArgumentException("Can't find key to sign with.");
     }
 }
 

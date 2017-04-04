@@ -1,5 +1,8 @@
 import java.io.*;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.*;
 import java.util.*;
 import javax.mail.*;
@@ -124,7 +127,14 @@ public class GetMail {
         out.println(content);
         out.close();
         EncryptionHandler.getDecrypted("misc/decodemail.txt", secretPath, SendEmail.pass, "misc/decodemail.txt");
-        System.out.println(Utilities.readFile("misc/decodemail.txt", StandardCharsets.US_ASCII));
+        System.out.println(readFile("misc/decodemail.txt", StandardCharsets.US_ASCII));
+    }
+
+    static String readFile(String path, Charset encoding)
+            throws IOException
+    {
+        byte[] encoded = Files.readAllBytes(Paths.get(path));
+        return new String(encoded, encoding);
     }
 
 }

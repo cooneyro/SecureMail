@@ -7,15 +7,14 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openpgp.*;
 import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
 import java.security.NoSuchProviderException;
-import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
+
+import org.bouncycastle.openpgp.operator.jcajce.*;
+
 import java.security.Security;
 import java.util.Iterator;
-import org.bouncycastle.openpgp.operator.jcajce.JcePublicKeyDataDecryptorFactoryBuilder;
 import java.security.SecureRandom;
 import org.bouncycastle.bcpg.CompressionAlgorithmTags;
-import org.bouncycastle.openpgp.operator.jcajce.JcePublicKeyKeyEncryptionMethodGenerator;
 import org.bouncycastle.util.io.Streams;
-import org.bouncycastle.openpgp.operator.jcajce.JcePGPDataEncryptorBuilder;
 
 /**
  * Handles encryption and decryption of files
@@ -82,7 +81,7 @@ public class EncryptionHandler {
             while (privateKey == null && iterate.hasNext()) {
                 data = (PGPPublicKeyEncryptedData) iterate.next();
 
-                privateKey = Utilities.retrieveSecretKey(secretKeys, data.getKeyID(), pass);
+                privateKey = retrieveSecretKey(secretKeys, data.getKeyID(), pass);
             }
 
             if (privateKey == null) {
@@ -180,7 +179,7 @@ public class EncryptionHandler {
         Security.addProvider(new BouncyCastleProvider());
 
         try {
-            byte[] fileToBytes = Utilities.compFile(fileName, CompressionAlgorithmTags.ZIP);
+            byte[] fileToBytes = compFile(fileName, CompressionAlgorithmTags.ZIP);
             //use data encryptor for creating encrypted data generator
             JcePGPDataEncryptorBuilder thisBuilder = new JcePGPDataEncryptorBuilder(PGPEncryptedData.CAST5);
             thisBuilder.setWithIntegrityPacket(true);
@@ -196,5 +195,27 @@ public class EncryptionHandler {
         } catch (PGPException e) {
             System.err.println(e);
         }
+    }
+
+    // Retrieve a secret key given a key ring collection, the key's ID and password
+    static PGPPrivateKey retrieveSecretKey(PGPSecretKeyRingCollection krc, long ID, char[] pw)
+            throws PGPException, NoSuchProviderException {
+        PGPSecretKey krcKey = krc.getSecretKey(ID);
+
+        if (krcKey == null) {
+            return null;
+        }
+
+        return krcKey.extractPrivateKey(new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(pw));
+    }
+
+    // compress file using given algorithm
+    static byte[] compFile(String file, int alg) throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        PGPCompressedDataGenerator compressed = new PGPCompressedDataGenerator(alg);
+        char type = PGPLiteralData.BINARY;
+        PGPUtil.writeFileToLiteralData(compressed.open(outputStream), type, new File(file));
+        compressed.close();
+        return outputStream.toByteArray();
     }
 }

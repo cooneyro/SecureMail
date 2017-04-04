@@ -59,7 +59,7 @@ public class KeyringManager {
         //create file to store identities of public keys input by user in future
         File f = new File("misc/Identities.txt");
         f.createNewFile();
-        String current = Utilities.readFile("misc/Identities.txt",StandardCharsets.US_ASCII);
+        String current = GetMail.readFile("misc/Identities.txt",StandardCharsets.US_ASCII);
         current = current.concat(id);
         PrintWriter out = new PrintWriter("misc/Identities.txt");
         out.println(current);
@@ -86,8 +86,8 @@ public class KeyringManager {
             PGPPublicKeyRingCollection thisCollection = new PGPPublicKeyRingCollection(
                     PGPUtil.getDecoderStream(inStream), new JcaKeyFingerprintCalculator());
             //creating key ring to add to collection
-            PGPPrivateKey thisPriv = Utilities.retrieveSecretKey("keys/secret.asc").extractPrivateKey(new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(SendEmail.pass));
-            PGPKeyPair thisPair = new PGPKeyPair(Utilities.getPubKey(filename),thisPriv);
+            PGPPrivateKey thisPriv = Initialize.retrieveSecretKey("keys/secret.asc").extractPrivateKey(new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(SendEmail.pass));
+            PGPKeyPair thisPair = new PGPKeyPair(Initialize.getPubKey(filename),thisPriv);
             PGPDigestCalculator thisCalc = new JcaPGPDigestCalculatorProviderBuilder().build().get(HashAlgorithmTags.SHA1);
             JcaPGPContentSignerBuilder thisCSBuilder =  new JcaPGPContentSignerBuilder(thisPair.getPublicKey().getAlgorithm(), HashAlgorithmTags.SHA1);
             PBESecretKeyEncryptor thisEncryptor = new JcePBESecretKeyEncryptorBuilder(PGPEncryptedData.CAST5, thisCalc).setProvider("BC").build(SendEmail.pass);
@@ -105,7 +105,7 @@ public class KeyringManager {
             //update identity list
             File f = new File("misc/Identities.txt");
             f.createNewFile();
-            String current = Utilities.readFile("misc/Identities.txt",StandardCharsets.US_ASCII);
+            String current = GetMail.readFile("misc/Identities.txt",StandardCharsets.US_ASCII);
             current = current.concat(addID);
             PrintWriter out = new PrintWriter("misc/Identities.txt");
             out.println(current);
@@ -149,14 +149,14 @@ public class KeyringManager {
 
 
             FileWriter out = new FileWriter("misc/Identities.txt",false);
-            out.write(Utilities.readFile("misc/tempFile.txt",StandardCharsets.US_ASCII));
+            out.write(GetMail.readFile("misc/tempFile.txt",StandardCharsets.US_ASCII));
             out.close();
             tempF.delete();
 
 
         }else if(thisChar==('l')){ //print IDs of all public keys stored
             System.out.println("List of public key IDs you currently store:");
-            System.out.println(Utilities.readFile("misc/Identities.txt", StandardCharsets.US_ASCII));
+            System.out.println(GetMail.readFile("misc/Identities.txt", StandardCharsets.US_ASCII));
         }
 
         else{

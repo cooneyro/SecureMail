@@ -50,7 +50,7 @@ public class SendEmail {
 
         Thread.sleep(500);
 
-        String message = Utilities.readFile(encryptedOutputFileName,US_ASCII);
+        String message = GetMail.readFile(encryptedOutputFileName,US_ASCII);
 
         try{ //enter sender's google username and password below
             send("redacted","redacted","testaccrc@gmail.com","Example title",message);
