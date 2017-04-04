@@ -36,7 +36,7 @@ public class SendEmail {
         File output = new File(sigOutputFileName);
         File secret = new File(secretPath);
         output.createNewFile();
-        String id = "H";
+        String id = "R";
         //InputStream streamIn = new FileInputStream(secret);
         //OutputStream streamOut = new FileOutputStream(output,false);
 
