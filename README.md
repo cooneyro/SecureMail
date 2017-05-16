@@ -5,4 +5,4 @@
 
 - Uses RSA key pairs for encryption and decryption
 
-- Public keys can be added to a user's keyring for future encryption and verification of signatures
+- Public keys can be added to a user's keyring for future encryption of e-mails and verification of mail senders' signatures.
